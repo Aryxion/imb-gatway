@@ -1,0 +1,4 @@
+node_modules/
+.env
+service-account.json
+nora777-b6fe1-firebase-adminsdk-fbsvc-29795b2124.json
