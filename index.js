@@ -74,7 +74,7 @@ app.post('/imb-webhook', async (req, res) => {
     if (!userToken || !apiUrl) {
       try {
         const configSnap = await admin.firestore().doc('appConfig/settings').get();
-        if (configSnap.exists()) {
+        if (configSnap.exists) {
           const data = configSnap.data();
           userToken = userToken || data.imbUserToken;
           apiUrl = apiUrl || data.imbApiUrl;
@@ -85,10 +85,13 @@ app.post('/imb-webhook', async (req, res) => {
     }
 
     // Use absolute defaults (staging defaults you provided)
-    userToken = userToken || '43436b3fa240f5b0100be86b8c50261043436b3fa240f5b0100be86b8c502610';
+    userToken = userToken || '43436b3fa240f5b0100be86b8c502610';
     apiUrl = apiUrl || 'https://secure-stage.imb.org.in/';
 
-    const cleanBaseUrl = apiUrl.replace(/\/$/, '');
+    let cleanBaseUrl = apiUrl.replace(/\/$/, '');
+    if (!cleanBaseUrl.endsWith('/api')) {
+      cleanBaseUrl += '/api';
+    }
 
     // Call IMB status check API securely to prevent client-side webhook spoofing
     const details = {
@@ -117,7 +120,10 @@ app.post('/imb-webhook', async (req, res) => {
     const statusData = await apiResponse.json();
     console.log('Gateway order status verification response:', statusData);
 
-    if (!statusData.status || !statusData.result || statusData.result.status !== 'COMPLETED') {
+    const gatewayStatus = statusData.result && statusData.result.status ? String(statusData.result.status).toUpperCase() : '';
+    const isCompleted = gatewayStatus === 'COMPLETED' || gatewayStatus === 'SUCCESS' || gatewayStatus === 'SUCCESSFUL';
+
+    if (!statusData.status || !statusData.result || !isCompleted) {
       console.log(`Order ${order_id} verification check failed. Status: ${statusData.result ? statusData.result.status : 'PENDING'}`);
       return res.status(200).send('Verification Pending: Order is not completed');
     }
@@ -152,7 +158,7 @@ app.post('/imb-webhook', async (req, res) => {
 
     await db.runTransaction(async (transaction) => {
       const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists()) {
+      if (!userSnap.exists) {
         throw new Error(`User profile ${userId} not found`);
       }
 
@@ -173,6 +179,8 @@ app.post('/imb-webhook', async (req, res) => {
         status: 'completed',
         processedAt: dateStr,
         verificationSource: 'free-webhook-server',
+        requestType: txnData.method || 'IMB_PAY',
+        creditAt: dateStr,
       });
     });
 
